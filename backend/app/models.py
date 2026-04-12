@@ -1,0 +1,39 @@
+from __future__ import annotations
+
+from datetime import datetime
+from typing import List
+
+from pydantic import BaseModel, Field
+
+
+class ChatMessageIn(BaseModel):
+    username: str = Field(..., min_length=1, max_length=40)
+    body: str = Field(..., min_length=1, max_length=400)
+
+
+class ProcessedMessage(BaseModel):
+    username: str
+    original_body: str
+    normalised_body: str
+    cluster_key: str
+    timestamp: datetime
+
+
+class TopicSummary(BaseModel):
+    topic: str
+    count: int
+
+
+class SpamClusterSummary(BaseModel):
+    text: str
+    count: int
+    users: List[str]
+
+
+class DashboardSummary(BaseModel):
+    total_messages: int
+    messages_last_minute: int
+    unique_users_last_minute: int
+    top_topics: List[TopicSummary]
+    spam_clusters: List[SpamClusterSummary]
+    recent_messages: List[ProcessedMessage]
