@@ -11,10 +11,12 @@ from .normalisation import (
     extract_topic_terms,
     normalise_text,
 )
+from .similarity import fuzzy_jaccard_similarity
 
 DIRECT_TOKEN_MATCH_THRESHOLD = 0.6
 SEQUENCE_MATCH_THRESHOLD = 0.82
 MIN_TOKEN_OVERLAP_FOR_SEQUENCE_MATCH = 0.3
+CLUSTER_VARIANT_LIMIT = 6
 
 
 class ChatPipeline:
@@ -24,6 +26,7 @@ class ChatPipeline:
         self.topic_counter: Counter[str] = Counter()
         self.cluster_counts: Counter[str] = Counter()
         self.cluster_examples: dict[str, str] = {}
+        self.cluster_variants: dict[str, deque[str]] = {}
         self.cluster_users: defaultdict[str, set[str]] = defaultdict(set)
         self.next_cluster_number = 1
 
@@ -44,6 +47,7 @@ class ChatPipeline:
             original_body=body,
             normalised_body=normalised_body,
             cluster_key=cluster_key,
+            cluster_label=self.cluster_examples[cluster_key],
             timestamp=timestamp,
         )
 
@@ -55,36 +59,24 @@ class ChatPipeline:
         for topic in extract_topic_terms(normalised_body):
             self.topic_counter[topic] += 1
 
+        self.sync_cluster_labels(cluster_key)
+
         return processed
 
     def assign_cluster(self, normalised_body: str) -> str:
         best_match = None
         best_score = 0.0
 
-        for cluster_key, example_text in self.cluster_examples.items():
-            token_overlap = jaccard_similarity(
-                extract_similarity_terms(normalised_body),
-                extract_similarity_terms(example_text),
-            )
-            sequence_overlap = SequenceMatcher(
-                None,
-                normalised_body,
-                example_text,
-            ).ratio()
-
-            if not should_merge_messages(token_overlap, sequence_overlap):
-                continue
-
-            score = (token_overlap * 0.65) + (sequence_overlap * 0.35)
+        for cluster_key, variants in self.cluster_variants.items():
+            score = self.best_variant_match_score(normalised_body, variants)
             if score > best_score:
                 best_match = cluster_key
                 best_score = score
 
         if best_match is not None:
-            current_example = self.cluster_examples[best_match]
+            self.add_cluster_variant(best_match, normalised_body)
             self.cluster_examples[best_match] = choose_cluster_example(
-                current_example,
-                normalised_body,
+                self.cluster_variants[best_match]
             )
             return best_match
 
@@ -95,7 +87,53 @@ class ChatPipeline:
         cluster_key = f"{seed}-{self.next_cluster_number}"
         self.next_cluster_number += 1
         self.cluster_examples[cluster_key] = normalised_body
+        self.cluster_variants[cluster_key] = deque(
+            [normalised_body],
+            maxlen=CLUSTER_VARIANT_LIMIT,
+        )
         return cluster_key
+
+    def best_variant_match_score(
+        self,
+        normalised_body: str,
+        variants: deque[str],
+    ) -> float:
+        best_score = 0.0
+
+        for variant_text in variants:
+            token_overlap = fuzzy_jaccard_similarity(
+                extract_similarity_terms(normalised_body),
+                extract_similarity_terms(variant_text),
+            )
+            sequence_overlap = SequenceMatcher(
+                None,
+                normalised_body,
+                variant_text,
+            ).ratio()
+
+            if not should_merge_messages(token_overlap, sequence_overlap):
+                continue
+
+            score = (token_overlap * 0.65) + (sequence_overlap * 0.35)
+            if score > best_score:
+                best_score = score
+
+        return best_score
+
+    def add_cluster_variant(self, cluster_key: str, normalised_body: str) -> None:
+        variants = self.cluster_variants.setdefault(
+            cluster_key,
+            deque(maxlen=CLUSTER_VARIANT_LIMIT),
+        )
+        if normalised_body in variants:
+            return
+        variants.append(normalised_body)
+
+    def sync_cluster_labels(self, cluster_key: str) -> None:
+        cluster_label = self.cluster_examples[cluster_key]
+        for message in self.processed_messages:
+            if message.cluster_key == cluster_key:
+                message.cluster_label = cluster_label
 
     def summary(self) -> DashboardSummary:
         one_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
@@ -137,25 +175,33 @@ def should_merge_messages(token_overlap: float, sequence_overlap: float) -> bool
     )
 
 
-def jaccard_similarity(left: set[str], right: set[str]) -> float:
-    if not left and not right:
-        return 1.0
-    if not left or not right:
-        return 0.0
-    return len(left & right) / len(left | right)
+def choose_cluster_example(variants: deque[str]) -> str:
+    best_variant = ""
+    best_score = float("-inf")
+
+    for candidate in variants:
+        centrality_score = sum(
+            raw_message_similarity(candidate, other)
+            for other in variants
+            if other != candidate
+        )
+        readability_score = -repeated_letter_score(candidate)
+        score = centrality_score + (readability_score * 0.05)
+
+        if score > best_score:
+            best_variant = candidate
+            best_score = score
+
+    return best_variant or variants[0]
 
 
-def choose_cluster_example(current: str, candidate: str) -> str:
-    # Prefer cleaner labels for the dashboard when two messages belong to the
-    # same cluster.
-    current_score = repeated_letter_score(current)
-    candidate_score = repeated_letter_score(candidate)
-
-    if candidate_score < current_score:
-        return candidate
-    if candidate_score == current_score and len(candidate) > len(current):
-        return candidate
-    return current
+def raw_message_similarity(left_text: str, right_text: str) -> float:
+    token_overlap = fuzzy_jaccard_similarity(
+        extract_similarity_terms(left_text),
+        extract_similarity_terms(right_text),
+    )
+    sequence_overlap = SequenceMatcher(None, left_text, right_text).ratio()
+    return (token_overlap * 0.65) + (sequence_overlap * 0.35)
 
 
 def repeated_letter_score(text: str) -> int:

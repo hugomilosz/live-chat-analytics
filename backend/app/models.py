@@ -16,6 +16,7 @@ class ProcessedMessage(BaseModel):
     original_body: str
     normalised_body: str
     cluster_key: str
+    cluster_label: str
     timestamp: datetime
 
 

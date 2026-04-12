@@ -6,20 +6,8 @@ Chat Analyser is a real-time moderation analytics tool for live chat. It ingests
 
 - ingest structured chat messages with `username` and `body`
 - normalise Unicode text and common typo patterns
+- recognise likely keyboard-adjacent typo variants during clustering
 - group near-duplicate messages into simple spam clusters
-- extract frequently discussed terms as lightweight topics
-- display message velocity, topic activity, and recent processed chat
-
-## Architecture
-
-```mermaid
-flowchart LR
-    A["Chat Source"] --> B["Ingestion API"]
-    B --> C["Processing Layer"]
-    C --> D["Aggregation Layer"]
-    D --> E["Dashboard API"]
-    E --> F["React Dashboard"]
-```
 
 ### Pipeline
 
@@ -30,6 +18,8 @@ flowchart LR
    - repeated punctuation reduced
    - common typo variants corrected
 3. The message is matched to an existing cluster if it is similar enough to a recent example.
+   - token overlap is typo-aware
+   - nearby-key substitutions and transpositions are treated as similar
 4. The system updates aggregate state:
    - recent message count
    - active users

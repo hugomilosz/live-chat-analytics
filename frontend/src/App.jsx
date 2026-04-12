@@ -126,7 +126,7 @@ export default function App() {
         <article className="panel">
           <div className="panel-header">
             <h2>Recent Messages</h2>
-            <span>Processed output</span>
+            <span>Cluster assignment</span>
           </div>
           <div className="message-list">
             {summary.recent_messages.length === 0 ? (
@@ -138,7 +138,11 @@ export default function App() {
                     <strong>{message.username}</strong>
                     <p>{message.original_body}</p>
                   </div>
-                  <code>{message.normalised_body}</code>
+                  <div className="message-output">
+                    <code>{message.cluster_label}</code>
+                    <small>cluster: {message.cluster_key}</small>
+                    <small>normalised: {message.normalised_body}</small>
+                  </div>
                 </div>
               ))
             )}

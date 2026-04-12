@@ -22,6 +22,7 @@ MESSAGES = [
     "this game sux",
     "this game suxx",
     "this gaem sucks",
+    "this gamd sucks",
     "please fix the lag",
     "the puzzle room looks amazing",
     "why is chat so slow today",

@@ -5,13 +5,6 @@ import unicodedata
 
 
 ADJACENT_KEY_FIXES = {
-    "teh": "the",
-    "thsi": "this",
-    "waht": "what",
-    "recieve": "receive",
-    "adn": "and",
-    "wierd": "weird",
-    "becuase": "because",
     "sux": "sucks",
     "pls": "please",
 }

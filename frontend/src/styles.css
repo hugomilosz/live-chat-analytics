@@ -171,6 +171,17 @@ h1 {
   white-space: pre-wrap;
 }
 
+.message-output {
+  display: grid;
+  gap: 6px;
+  justify-items: end;
+  text-align: right;
+}
+
+.message-output small {
+  color: #b8b2a7;
+}
+
 .composer {
   display: grid;
   gap: 14px;
@@ -253,5 +264,10 @@ h1 {
 
   .message-row {
     display: grid;
+  }
+
+  .message-output {
+    justify-items: start;
+    text-align: left;
   }
 }
