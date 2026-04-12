@@ -6,7 +6,7 @@ Chat Analyser is a real-time moderation analytics tool for live chat. It ingests
 
 - ingest structured chat messages with `username` and `body`
 - normalise Unicode text and common typo patterns
-- group repeated messages into simple spam clusters
+- group near-duplicate messages into simple spam clusters
 - extract frequently discussed terms as lightweight topics
 - display message velocity, topic activity, and recent processed chat
 
@@ -29,11 +29,11 @@ flowchart LR
    - Unicode normalised
    - repeated punctuation reduced
    - common typo variants corrected
-3. A cluster key is generated from the normalised text.
+3. The message is matched to an existing cluster if it is similar enough to a recent example.
 4. The system updates aggregate state:
    - recent message count
    - active users
-   - likely spam clusters
+   - likely spam clusters using message similarity
    - top topic terms
 5. The frontend polls the summary endpoint and renders the latest state.
 
@@ -89,6 +89,14 @@ npm run dev
 
 Frontend: `http://localhost:5173`
 
+## Run tests
+
+```bash
+cd backend
+source .venv/bin/activate
+pytest tests -q
+```
+
 ## API
 
 ### `GET /health`
@@ -112,4 +120,4 @@ Accepts a single chat message:
 
 ### `POST /api/simulate?count=15`
 
-Loads sample chat messages into the pipeline for testing the dashboard..
+Loads sample chat messages into the pipeline for testing the dashboard.

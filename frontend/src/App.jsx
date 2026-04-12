@@ -103,7 +103,7 @@ export default function App() {
         <article className="panel">
           <div className="panel-header">
             <h2>Spam Clusters</h2>
-            <span>Repeated normalised text</span>
+            <span>Near-duplicate messages</span>
           </div>
           <div className="cluster-list">
             {summary.spam_clusters.length === 0 ? (

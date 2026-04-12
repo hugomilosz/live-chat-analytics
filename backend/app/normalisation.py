@@ -58,6 +58,14 @@ def cluster_key_for(text: str) -> str:
     return " ".join(words[:4])
 
 
+def extract_similarity_terms(text: str) -> set[str]:
+    return {
+        word
+        for word in text.split()
+        if len(word) > 2 and word not in STOPWORDS and not word.isdigit()
+    }
+
+
 def extract_topic_terms(text: str) -> list[str]:
     return [
         word
