@@ -24,8 +24,22 @@ export default function App() {
 
   useEffect(() => {
     refreshSummary();
-    const intervalId = window.setInterval(refreshSummary, 2000);
-    return () => window.clearInterval(intervalId);
+    const ws = new WebSocket("ws://localhost:8000/ws");
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      setSummary(data);
+    };
+
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket disconnected");
+    };
+
+    return () => ws.close();
   }, []);
 
   async function submitMessage(event) {
