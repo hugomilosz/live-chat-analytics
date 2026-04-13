@@ -31,10 +31,18 @@ class SpamClusterSummary(BaseModel):
     users: List[str]
 
 
+class TopicGroupSummary(BaseModel):
+    phrase: str
+    count: int
+    users: List[str]
+    sample_messages: List[str]
+
+
 class DashboardSummary(BaseModel):
     total_messages: int
     messages_last_minute: int
     unique_users_last_minute: int
     top_topics: List[TopicSummary]
+    topic_groups: List[TopicGroupSummary]
     spam_clusters: List[SpamClusterSummary]
     recent_messages: List[ProcessedMessage]

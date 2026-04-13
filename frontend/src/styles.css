@@ -160,6 +160,15 @@ h1 {
   margin-bottom: 6px;
 }
 
+.cluster-card small {
+  display: block;
+  color: #b8b2a7;
+}
+
+.cluster-card small + small {
+  margin-top: 6px;
+}
+
 .message-row {
   display: flex;
   justify-content: space-between;

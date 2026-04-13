@@ -23,6 +23,9 @@ MESSAGES = [
     "this game suxx",
     "this gaem sucks",
     "this gamd sucks",
+    "this game is bad",
+    "this game is good",
+    "yhis game",
     "please fix the lag",
     "the puzzle room looks amazing",
     "why is chat so slow today",
@@ -32,6 +35,8 @@ MESSAGES = [
     "this game sucks!!",
     "what keyboard are you using",
     "audio desync again",
+    "stream audio is delayed",
+    "stream audio is bad",
     "teh stream is stuttering",
 ]
 
