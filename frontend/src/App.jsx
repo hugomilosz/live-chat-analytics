@@ -7,6 +7,7 @@ const emptySummary = {
   messages_last_minute: 0,
   unique_users_last_minute: 0,
   top_topics: [],
+  topic_groups: [],
   spam_clusters: [],
   recent_messages: [],
 };
@@ -116,6 +117,30 @@ export default function App() {
 
         <article className="panel">
           <div className="panel-header">
+            <h2>Topic Groups</h2>
+            <span>Shared subject phrases</span>
+          </div>
+          <div className="cluster-list">
+            {summary.topic_groups.length === 0 ? (
+              <p className="empty-state">No repeated topic groups yet.</p>
+            ) : (
+              summary.topic_groups.map((group) => (
+                <div className="cluster-card" key={group.phrase}>
+                  <p>{group.phrase}</p>
+                  <small>
+                    {group.count} messages across {group.users.length} users
+                  </small>
+                  <small>{group.sample_messages.join(" | ")}</small>
+                </div>
+              ))
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className="panel-grid">
+        <article className="panel">
+          <div className="panel-header">
             <h2>Spam Clusters</h2>
             <span>Near-duplicate messages</span>
           </div>
@@ -134,9 +159,7 @@ export default function App() {
             )}
           </div>
         </article>
-      </section>
 
-      <section className="panel-grid">
         <article className="panel">
           <div className="panel-header">
             <h2>Recent Messages</h2>
@@ -162,7 +185,9 @@ export default function App() {
             )}
           </div>
         </article>
+      </section>
 
+      <section className="panel-grid">
         <article className="panel">
           <div className="panel-header">
             <h2>Send Test Message</h2>
