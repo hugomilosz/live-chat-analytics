@@ -7,9 +7,6 @@ from .aggregation import ChatPipeline
 from .models import ChatMessageIn
 from .sample_data import random_message
 
-import asyncio
-
-
 app = FastAPI(title="Chat Analyser API")
 pipeline = ChatPipeline()
 
