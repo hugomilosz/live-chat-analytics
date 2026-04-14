@@ -18,11 +18,18 @@ def reset_pipeline() -> None:
     pipeline.raw_messages.clear()
     pipeline.processed_messages.clear()
     pipeline.topic_counter.clear()
+    pipeline.topic_group_counts.clear()
     pipeline.cluster_counts.clear()
     pipeline.cluster_examples.clear()
     pipeline.cluster_variants.clear()
+    pipeline.cluster_variant_counts.clear()
     pipeline.cluster_users.clear()
+    pipeline.topic_group_labels.clear()
+    pipeline.topic_group_variants.clear()
+    pipeline.topic_group_users.clear()
+    pipeline.topic_group_examples.clear()
     pipeline.next_cluster_number = 1
+    pipeline.next_topic_group_number = 1
 
 
 def setup_function() -> None:
@@ -98,6 +105,50 @@ def test_cluster_matching_uses_multiple_examples_instead_of_one_label() -> None:
     assert {
         message["cluster_label"] for message in summary["recent_messages"]
     } == {"this game sucks"}
+
+
+def test_topic_groups_capture_shared_subjects_without_merging_spam_clusters() -> None:
+    messages = [
+        {"username": "u1", "body": "this game is bad"},
+        {"username": "u2", "body": "this game is good"},
+        {"username": "u3", "body": "yhis game"},
+        {"username": "u4", "body": "audio is broken"},
+    ]
+
+    for payload in messages:
+        response = client.post("/api/messages", json=payload)
+        assert response.status_code == 200
+
+    summary = client.get("/api/summary").json()
+
+    assert len(summary["spam_clusters"]) == 0
+    topic_groups = {group["phrase"]: group for group in summary["topic_groups"]}
+    assert "this game" in topic_groups
+    this_game_group = topic_groups["this game"]
+    assert this_game_group["count"] == 3
+    assert sorted(this_game_group["users"]) == ["u1", "u2", "u3"]
+    assert len(this_game_group["sample_messages"]) == 3
+
+
+def test_topic_groups_surface_shared_two_word_phrases() -> None:
+    messages = [
+        {"username": "u1", "body": "stream audio is bad"},
+        {"username": "u2", "body": "stream audio is good"},
+        {"username": "u3", "body": "stream audio is delayed"},
+    ]
+
+    for payload in messages:
+        response = client.post("/api/messages", json=payload)
+        assert response.status_code == 200
+
+    summary = client.get("/api/summary").json()
+
+    assert len(summary["topic_groups"]) == 1
+    topic_group = summary["topic_groups"][0]
+    assert topic_group["phrase"] == "stream audio"
+    assert topic_group["count"] == 3
+    assert sorted(topic_group["users"]) == ["u1", "u2", "u3"]
+    assert len(topic_group["sample_messages"]) == 3
 
 
 def test_simulate_endpoint_adds_messages_within_requested_bounds() -> None:

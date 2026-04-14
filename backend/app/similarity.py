@@ -4,12 +4,21 @@ from difflib import SequenceMatcher
 
 TOKEN_MATCH_THRESHOLD = 0.74
 
-# Omly QWERTY keyboard for now
 KEYBOARD_LAYOUTS = (
     (
         ("qwertyuiop", 0.50),
         ("asdfghjkl", 0.75),
         ("zxcvbnm", 1.25),
+    ),
+    (
+        ("qwertzuiop", 0.50),
+        ("asdfghjkl", 0.75),
+        ("yxcvbnm", 1.25),
+    ),
+    (
+        ("azertyuiop", 0.50),
+        ("qsdfghjklm", 0.75),
+        ("wxcvbn", 1.25),
     ),
 )
 
@@ -69,6 +78,12 @@ def token_similarity(left: str, right: str) -> float:
     ratio = SequenceMatcher(None, collapsed_left, collapsed_right).ratio()
     if ratio >= 0.9:
         return ratio * 0.82
+    if (
+        min(len(collapsed_left), len(collapsed_right)) <= 3
+        and shared_prefix_length(collapsed_left, collapsed_right) >= 2
+        and ratio >= 0.55
+    ):
+        return 0.78
 
     return 0.0
 
@@ -174,3 +189,12 @@ def build_keyboard_neighbours() -> dict[str, frozenset[str]]:
 
 
 KEYBOARD_NEIGHBOURS = build_keyboard_neighbours()
+
+
+def shared_prefix_length(left: str, right: str) -> int:
+    count = 0
+    for left_character, right_character in zip(left, right, strict=False):
+        if left_character != right_character:
+            break
+        count += 1
+    return count
