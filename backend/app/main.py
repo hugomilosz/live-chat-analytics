@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
 from .aggregation import ChatPipeline
@@ -29,9 +29,9 @@ async def websocket_endpoint(websocket: WebSocket):
     subscribers.append(websocket)
     try:
         while True:
-            # push when data changes
-            await asyncio.sleep(1000)
-    except:
+            # BLocks until a message is received/conenction drops
+            await websocket.receive_text()
+    except WebSocketDisconnect:
         subscribers.remove(websocket)
 
 
@@ -44,15 +44,21 @@ def health() -> dict[str, str]:
 def get_summary():
     return pipeline.summary()
 
+async def broadcast_summary():
+    summary_data = pipeline.summary().model_dump()
+    # Iterate over copy of the list
+    for ws in subscribers.copy():
+        try:
+            await ws.send_json(summary_data)
+        except Exception as e:
+            print(f"WebSocket Error: {e}")
+            subscribers.remove(ws)
+
 
 @app.post("/api/messages")
 async def post_message(message: ChatMessageIn):
     processed = pipeline.ingest(message.username, message.body)
-    for ws in subscribers:
-        try:
-            await ws.send_json(pipeline.summary())
-        except:
-            subscribers.remove(ws)
+    await broadcast_summary()
 
     return {"status": "accepted", "message": processed}
 
@@ -63,9 +69,6 @@ async def simulate_messages(count: int = 12):
     for _ in range(max(1, min(count, 100))):
         sample = random_message()
         inserted.append(pipeline.ingest(sample.username, sample.body))
-    for ws in subscribers:
-        try:
-            await ws.send_json(pipeline.summary())
-        except:
-            subscribers.remove(ws)
+    await broadcast_summary()
+    
     return {"status": "accepted", "inserted": inserted, "summary": pipeline.summary()}

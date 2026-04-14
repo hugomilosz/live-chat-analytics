@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE;
+const WS_BASE = import.meta.env.VITE_WS_BASE;
 
 const emptySummary = {
   total_messages: 0,
@@ -24,7 +25,7 @@ export default function App() {
 
   useEffect(() => {
     refreshSummary();
-    const ws = new WebSocket("ws://localhost:8000/ws");
+    const ws = new WebSocket(`${WS_BASE}/ws`);
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
