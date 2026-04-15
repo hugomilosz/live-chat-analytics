@@ -1,14 +1,26 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
-from .aggregation import ChatPipeline
 from .models import ChatMessageIn
 from .sample_data import random_message
+from .kafka import send_message
+from .state import pipeline
+from .consumer import run as start_kafka_consumer
 
-app = FastAPI(title="Chat Analyser API")
-pipeline = ChatPipeline()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("Starting background Kafka consumer...")
+    consumer_task = asyncio.create_task(start_kafka_consumer(broadcast_summary))
+    yield
+    print("Stopping background Kafka consumer...")
+    consumer_task.cancel()
+
+app = FastAPI(title="Chat Analyser API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -26,7 +38,7 @@ async def websocket_endpoint(websocket: WebSocket):
     subscribers.append(websocket)
     try:
         while True:
-            # BLocks until a message is received/conenction drops
+            # Blocks until a message is received/conenction drops
             await websocket.receive_text()
     except WebSocketDisconnect:
         subscribers.remove(websocket)
@@ -42,7 +54,7 @@ def get_summary():
     return pipeline.summary()
 
 async def broadcast_summary():
-    summary_data = pipeline.summary().model_dump()
+    summary_data = pipeline.summary().model_dump(mode='json')
     # Iterate over copy of the list
     for ws in subscribers.copy():
         try:
@@ -54,10 +66,8 @@ async def broadcast_summary():
 
 @app.post("/api/messages")
 async def post_message(message: ChatMessageIn):
-    processed = pipeline.ingest(message.username, message.body)
-    await broadcast_summary()
-
-    return {"status": "accepted", "message": processed}
+    send_message(message.model_dump())
+    return {"status": "accepted"}
 
 
 @app.post("/api/simulate")
