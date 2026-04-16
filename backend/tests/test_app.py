@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import pytest
 from fastapi.testclient import TestClient
 
 
+# Mock Kafka
+sys.modules["confluent_kafka"] = MagicMock()
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 from app.main import app, pipeline
-
 
 client = TestClient(app)
 
-
+# Helper functions
 def reset_pipeline() -> None:
     pipeline.raw_messages.clear()
     pipeline.processed_messages.clear()
@@ -31,10 +33,14 @@ def reset_pipeline() -> None:
     pipeline.next_cluster_number = 1
     pipeline.next_topic_group_number = 1
 
-
-def setup_function() -> None:
+@pytest.fixture(autouse=True)
+def _setup():
     reset_pipeline()
 
+def ingest_messages(messages):
+    """Simulate Kafka consumer by directly feeding pipeline."""
+    for m in messages:
+        pipeline.ingest(m["username"], m["body"])
 
 def test_health_check_returns_ok() -> None:
     response = client.get("/health")
@@ -42,26 +48,16 @@ def test_health_check_returns_ok() -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
-
-def test_post_message_updates_summary_and_recent_messages() -> None:
-    # First, seed the pipeline with the "correct" version
-    client.post("/api/messages", json={"username": "user1", "body": "this game sucks"})
-    client.post("/api/messages", json={"username": "user2", "body": "this game sucks"})
-    client.post("/api/messages", json={"username": "user3", "body": "this game sucks"})
-
-    # Now post the noisy typo version
+def test_post_message_accepts_messages() -> None:
     response = client.post(
         "/api/messages",
-        json={"username": "demo_user", "body": "thsi game sux!!!"},
+        json={"username": "user1", "body": "hello world"},
     )
 
     assert response.status_code == 200
-    message = response.json()["message"]
-    
-    # Should be grouped under main cluster
-    assert message["cluster_label"] == "this game sucks"
+    assert response.json() == {"status": "accepted"}
 
-def test_near_duplicate_messages_form_a_single_cluster() -> None:
+def test_near_duplicate_messages_form_single_cluster() -> None:
     messages = [
         {"username": "u1", "body": "this game sux"},
         {"username": "u2", "body": "this game suxx"},
@@ -70,31 +66,26 @@ def test_near_duplicate_messages_form_a_single_cluster() -> None:
         {"username": "u5", "body": "audio desync again"},
     ]
 
-    for payload in messages:
-        response = client.post("/api/messages", json=payload)
-        assert response.status_code == 200
+    ingest_messages(messages)
 
     summary = client.get("/api/summary").json()
 
     assert summary["total_messages"] == 5
     assert len(summary["spam_clusters"]) == 1
 
-    spam_cluster = summary["spam_clusters"][0]
-    assert spam_cluster["count"] == 4
-    assert sorted(spam_cluster["users"]) == ["u1", "u2", "u3", "u4"]
-    assert spam_cluster["text"] == "this game sucks"
+    cluster = summary["spam_clusters"][0]
+    assert cluster["count"] == 4
+    assert sorted(cluster["users"]) == ["u1", "u2", "u3", "u4"]
+    assert cluster["text"] == "this game sucks"
 
-
-def test_cluster_matching_uses_multiple_examples_instead_of_one_label() -> None:
+def test_cluster_matching_uses_multiple_examples() -> None:
     messages = [
         {"username": "u1", "body": "this gaem sucks"},
         {"username": "u2", "body": "this game sucks"},
         {"username": "u3", "body": "this game suxx"},
     ]
 
-    for payload in messages:
-        response = client.post("/api/messages", json=payload)
-        assert response.status_code == 200
+    ingest_messages(messages)
 
     summary = client.get("/api/summary").json()
 
@@ -102,12 +93,11 @@ def test_cluster_matching_uses_multiple_examples_instead_of_one_label() -> None:
     assert len(summary["spam_clusters"]) == 1
     assert summary["spam_clusters"][0]["count"] == 3
     assert sorted(summary["spam_clusters"][0]["users"]) == ["u1", "u2", "u3"]
-    assert {
-        message["cluster_label"] for message in summary["recent_messages"]
-    } == {"this game sucks"}
 
+    labels = {m["cluster_label"] for m in summary["recent_messages"]}
+    assert labels == {"this game sucks"}
 
-def test_topic_groups_capture_shared_subjects_without_merging_spam_clusters() -> None:
+def test_topic_groups_capture_shared_subjects_without_merging_clusters() -> None:
     messages = [
         {"username": "u1", "body": "this game is bad"},
         {"username": "u2", "body": "this game is good"},
@@ -115,43 +105,40 @@ def test_topic_groups_capture_shared_subjects_without_merging_spam_clusters() ->
         {"username": "u4", "body": "audio is broken"},
     ]
 
-    for payload in messages:
-        response = client.post("/api/messages", json=payload)
-        assert response.status_code == 200
+    ingest_messages(messages)
 
     summary = client.get("/api/summary").json()
 
     assert len(summary["spam_clusters"]) == 0
-    topic_groups = {group["phrase"]: group for group in summary["topic_groups"]}
-    assert "this game" in topic_groups
-    this_game_group = topic_groups["this game"]
-    assert this_game_group["count"] == 3
-    assert sorted(this_game_group["users"]) == ["u1", "u2", "u3"]
-    assert len(this_game_group["sample_messages"]) == 3
 
+    groups = {g["phrase"]: g for g in summary["topic_groups"]}
+    assert "this game" in groups
 
-def test_topic_groups_surface_shared_two_word_phrases() -> None:
+    group = groups["this game"]
+    assert group["count"] == 3
+    assert sorted(group["users"]) == ["u1", "u2", "u3"]
+    assert len(group["sample_messages"]) == 3
+
+def test_topic_groups_surface_two_word_phrases() -> None:
     messages = [
         {"username": "u1", "body": "stream audio is bad"},
         {"username": "u2", "body": "stream audio is good"},
         {"username": "u3", "body": "stream audio is delayed"},
     ]
 
-    for payload in messages:
-        response = client.post("/api/messages", json=payload)
-        assert response.status_code == 200
+    ingest_messages(messages)
 
     summary = client.get("/api/summary").json()
 
     assert len(summary["topic_groups"]) == 1
-    topic_group = summary["topic_groups"][0]
-    assert topic_group["phrase"] == "stream audio"
-    assert topic_group["count"] == 3
-    assert sorted(topic_group["users"]) == ["u1", "u2", "u3"]
-    assert len(topic_group["sample_messages"]) == 3
 
+    group = summary["topic_groups"][0]
+    assert group["phrase"] == "stream audio"
+    assert group["count"] == 3
+    assert sorted(group["users"]) == ["u1", "u2", "u3"]
+    assert len(group["sample_messages"]) == 3
 
-def test_simulate_endpoint_adds_messages_within_requested_bounds() -> None:
+def test_simulate_endpoint_respects_bounds() -> None:
     response = client.post("/api/simulate?count=5")
 
     assert response.status_code == 200
