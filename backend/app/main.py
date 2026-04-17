@@ -12,13 +12,34 @@ from .kafka import send_message
 from .state import pipeline
 from .consumer import run as start_kafka_consumer
 
+broadcast_event = asyncio.Event()
+
+async def broadcaster_loop():
+    while True:
+        # Wait until the consumer pings and reset
+        await broadcast_event.wait()
+        broadcast_event.clear()
+        
+        # Wait in case other messages arrive right after and broadcast
+        await asyncio.sleep(0.2)
+        if subscribers:
+            await broadcast_summary()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Starting background Kafka consumer...")
-    consumer_task = asyncio.create_task(start_kafka_consumer(broadcast_summary))
+    consumer_task = asyncio.create_task(start_kafka_consumer(broadcast_event.set))
+    broadcaster_task = asyncio.create_task(broadcaster_loop())
     yield
     print("Stopping background Kafka consumer...")
     consumer_task.cancel()
+    broadcaster_task.cancel()
+
+    await asyncio.gather(
+        consumer_task,
+        broadcaster_task,
+        return_exceptions=True
+    )
 
 app = FastAPI(title="Chat Analyser API", lifespan=lifespan)
 
