@@ -8,14 +8,16 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-# Mock Kafka
 sys.modules["confluent_kafka"] = MagicMock()
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from app.main import app, pipeline
 
-client = TestClient(app)
+import app.main as main_module
 
-# Helper functions
+
+pipeline = main_module.pipeline
+client = TestClient(main_module.app)
+
+
 def reset_pipeline() -> None:
     pipeline.raw_messages.clear()
     pipeline.processed_messages.clear()
@@ -32,15 +34,18 @@ def reset_pipeline() -> None:
     pipeline.topic_group_examples.clear()
     pipeline.next_cluster_number = 1
     pipeline.next_topic_group_number = 1
+    main_module.subscribers.clear()
+
 
 @pytest.fixture(autouse=True)
-def _setup():
+def _setup() -> None:
     reset_pipeline()
 
-def ingest_messages(messages):
-    """Simulate Kafka consumer by directly feeding pipeline."""
-    for m in messages:
-        pipeline.ingest(m["username"], m["body"])
+
+def ingest_messages(messages: list[dict[str, str]]) -> None:
+    for message in messages:
+        pipeline.ingest(message["username"], message["body"])
+
 
 def test_health_check_returns_ok() -> None:
     response = client.get("/health")
@@ -48,7 +53,15 @@ def test_health_check_returns_ok() -> None:
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
-def test_post_message_accepts_messages() -> None:
+
+def test_post_message_accepts_messages(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_messages = []
+
+    def fake_send_message(message: dict[str, str]) -> None:
+        captured_messages.append(message)
+
+    monkeypatch.setattr(main_module, "send_message", fake_send_message)
+
     response = client.post(
         "/api/messages",
         json={"username": "user1", "body": "hello world"},
@@ -56,6 +69,8 @@ def test_post_message_accepts_messages() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "accepted"}
+    assert captured_messages == [{"username": "user1", "body": "hello world"}]
+
 
 def test_near_duplicate_messages_form_single_cluster() -> None:
     messages = [
@@ -78,6 +93,7 @@ def test_near_duplicate_messages_form_single_cluster() -> None:
     assert sorted(cluster["users"]) == ["u1", "u2", "u3", "u4"]
     assert cluster["text"] == "this game sucks"
 
+
 def test_cluster_matching_uses_multiple_examples() -> None:
     messages = [
         {"username": "u1", "body": "this gaem sucks"},
@@ -94,8 +110,9 @@ def test_cluster_matching_uses_multiple_examples() -> None:
     assert summary["spam_clusters"][0]["count"] == 3
     assert sorted(summary["spam_clusters"][0]["users"]) == ["u1", "u2", "u3"]
 
-    labels = {m["cluster_label"] for m in summary["recent_messages"]}
+    labels = {message["cluster_label"] for message in summary["recent_messages"]}
     assert labels == {"this game sucks"}
+
 
 def test_topic_groups_capture_shared_subjects_without_merging_clusters() -> None:
     messages = [
@@ -111,13 +128,14 @@ def test_topic_groups_capture_shared_subjects_without_merging_clusters() -> None
 
     assert len(summary["spam_clusters"]) == 0
 
-    groups = {g["phrase"]: g for g in summary["topic_groups"]}
+    groups = {group["phrase"]: group for group in summary["topic_groups"]}
     assert "this game" in groups
 
     group = groups["this game"]
     assert group["count"] == 3
     assert sorted(group["users"]) == ["u1", "u2", "u3"]
     assert len(group["sample_messages"]) == 3
+
 
 def test_topic_groups_surface_two_word_phrases() -> None:
     messages = [
@@ -138,13 +156,47 @@ def test_topic_groups_surface_two_word_phrases() -> None:
     assert sorted(group["users"]) == ["u1", "u2", "u3"]
     assert len(group["sample_messages"]) == 3
 
-def test_simulate_endpoint_respects_bounds() -> None:
-    response = client.post("/api/simulate?count=5")
 
-    assert response.status_code == 200
+def test_simulate_endpoint_queues_messages_through_broker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    queued_messages = []
+
+    def fake_send_message(message: dict[str, str]) -> None:
+        queued_messages.append(message)
+        pipeline.ingest(message["username"], message["body"])
+
+    monkeypatch.setattr(main_module, "send_message", fake_send_message)
+
+    response = client.post("/api/simulate?count=5")
     payload = response.json()
 
+    assert response.status_code == 200
     assert payload["status"] == "accepted"
     assert len(payload["inserted"]) == 5
-    assert payload["summary"]["total_messages"] == 5
-    assert payload["summary"]["messages_last_minute"] == 5
+    assert len(queued_messages) == 5
+    assert pipeline.summary().total_messages == 5
+
+
+def test_websocket_receives_summary_after_brokered_message(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_send_message(message: dict[str, str]) -> None:
+        pipeline.ingest(message["username"], message["body"])
+        main_module.broadcast_event.set()
+
+    monkeypatch.setattr(main_module, "send_message", fake_send_message)
+
+    with TestClient(main_module.app) as client:
+        with client.websocket_connect("/ws") as websocket:
+            response = client.post(
+                "/api/messages",
+                json={"username": "demo_user", "body": "thsi game sux!!!"},
+            )
+            summary = websocket.receive_json()
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "accepted"}
+    assert summary["total_messages"] == 1
+    assert summary["spam_clusters"] == []
+    assert summary["recent_messages"][0]["cluster_label"] == "this game sucks"

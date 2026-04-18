@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,17 +14,19 @@ from .state import pipeline
 from .consumer import run as start_kafka_consumer
 
 broadcast_event = asyncio.Event()
+subscribers: list[WebSocket] = []
+
 
 async def broadcaster_loop():
     while True:
-        # Wait until the consumer pings and reset
         await broadcast_event.wait()
         broadcast_event.clear()
-        
-        # Wait in case other messages arrive right after and broadcast
+
+        # Batch messages so the dashboard gets one update.
         await asyncio.sleep(0.2)
         if subscribers:
             await broadcast_summary()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -38,8 +41,9 @@ async def lifespan(app: FastAPI):
     await asyncio.gather(
         consumer_task,
         broadcaster_task,
-        return_exceptions=True
+        return_exceptions=True,
     )
+
 
 app = FastAPI(title="Chat Analyser API", lifespan=lifespan)
 
@@ -51,7 +55,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-subscribers = []
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -59,10 +62,11 @@ async def websocket_endpoint(websocket: WebSocket):
     subscribers.append(websocket)
     try:
         while True:
-            # Blocks until a message is received/conenction drops
+            # Keep the connection open until the client disconnects
             await websocket.receive_text()
     except WebSocketDisconnect:
-        subscribers.remove(websocket)
+        if websocket in subscribers:
+            subscribers.remove(websocket)
 
 
 @app.get("/health")
@@ -74,29 +78,35 @@ def health() -> dict[str, str]:
 def get_summary():
     return pipeline.summary()
 
+
 async def broadcast_summary():
-    summary_data = pipeline.summary().model_dump(mode='json')
-    # Iterate over copy of the list
+    summary_data = pipeline.summary().model_dump(mode="json")
     for ws in subscribers.copy():
         try:
             await ws.send_json(summary_data)
-        except Exception as e:
-            print(f"WebSocket Error: {e}")
-            subscribers.remove(ws)
+        except Exception as error:
+            print(f"WebSocket Error: {error}")
+            if ws in subscribers:
+                subscribers.remove(ws)
+
+
+def queue_message(message: ChatMessageIn | dict[str, Any]) -> dict[str, Any]:
+    payload = message if isinstance(message, dict) else message.model_dump()
+    send_message(payload)
+    return payload
 
 
 @app.post("/api/messages")
 async def post_message(message: ChatMessageIn):
-    send_message(message.model_dump())
+    queue_message(message)
     return {"status": "accepted"}
 
 
 @app.post("/api/simulate")
 async def simulate_messages(count: int = 12):
-    inserted = []
+    queued = []
     for _ in range(max(1, min(count, 100))):
         sample = random_message()
-        inserted.append(pipeline.ingest(sample.username, sample.body))
-    await broadcast_summary()
-    
-    return {"status": "accepted", "inserted": inserted, "summary": pipeline.summary()}
+        queued.append(queue_message(sample))
+
+    return {"status": "accepted", "inserted": queued}
