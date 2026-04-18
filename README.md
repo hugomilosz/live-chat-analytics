@@ -149,4 +149,4 @@ Accepts a single chat message and publishes it to the Kafka broker:
 
 ### `POST /api/simulate?count=15`
 
-Loads sample chat messages into the pipeline for testing the dashboard.
+Queues sample chat messages through the ingestion path.
