@@ -58,8 +58,12 @@ backend/
     main.py
     models.py
     normalisation.py
+    replay.py
     sample_data.py
     state.py
+  data/
+    demo_chat_replay.jsonl
+  replay_chat.py
   requirements.txt
 frontend/
   src/
@@ -117,6 +121,40 @@ npm run dev
 ```
 
 Frontend: `http://localhost:5173`
+
+### Replay a Chat Log
+
+Replay a live chat file through the pipeline and watch the dashboard update.
+
+```bash
+cd backend
+source .venv/bin/activate
+python replay_chat.py data/demo_chat_replay.jsonl --speed 5
+```
+
+Supported formats:
+
+- JSON array
+- JSONL / NDJSON
+- CSV
+
+Expected fields:
+
+- `username`
+- `body`
+- optional `timestamp`
+
+If timestamps are present, the replay preserves relative timing. If they are missing, messages are sent immediately in file order.
+
+You can also point the script at a real dataset export, as long as you map it into those fields. If your file uses different column names, pass them explicitly:
+
+```bash
+python replay_chat.py path/to/chat.csv \
+  --username-field author_name \
+  --body-field message_text \
+  --timestamp-field created_at \
+  --speed 10
+```
 
 ## Run tests
 

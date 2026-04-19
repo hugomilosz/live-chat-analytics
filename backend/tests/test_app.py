@@ -21,6 +21,7 @@ client = TestClient(main_module.app)
 def reset_pipeline() -> None:
     pipeline.raw_messages.clear()
     pipeline.processed_messages.clear()
+    pipeline.total_ingested_messages = 0
     pipeline.topic_counter.clear()
     pipeline.topic_group_counts.clear()
     pipeline.cluster_counts.clear()
@@ -85,6 +86,7 @@ def test_near_duplicate_messages_form_single_cluster() -> None:
 
     summary = client.get("/api/summary").json()
 
+    assert summary["total_ingested_messages"] == 5
     assert summary["total_messages"] == 5
     assert len(summary["spam_clusters"]) == 1
 
@@ -105,6 +107,7 @@ def test_cluster_matching_uses_multiple_examples() -> None:
 
     summary = client.get("/api/summary").json()
 
+    assert summary["total_ingested_messages"] == 3
     assert summary["total_messages"] == 3
     assert len(summary["spam_clusters"]) == 1
     assert summary["spam_clusters"][0]["count"] == 3
@@ -135,6 +138,20 @@ def test_topic_groups_capture_shared_subjects_without_merging_clusters() -> None
     assert group["count"] == 3
     assert sorted(group["users"]) == ["u1", "u2", "u3"]
     assert len(group["sample_messages"]) == 3
+
+
+def test_summary_reports_total_ingested_separately_from_retained_messages() -> None:
+    messages = [
+        {"username": f"user_{index}", "body": f"message number {index}"}
+        for index in range(505)
+    ]
+
+    ingest_messages(messages)
+
+    summary = client.get("/api/summary").json()
+
+    assert summary["total_ingested_messages"] == 505
+    assert summary["total_messages"] == 500
 
 
 def test_topic_groups_surface_two_word_phrases() -> None:

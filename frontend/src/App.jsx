@@ -4,6 +4,7 @@ const API_BASE = import.meta.env.VITE_API_BASE;
 const WS_BASE = import.meta.env.VITE_WS_BASE;
 
 const emptySummary = {
+  total_ingested_messages: 0,
   total_messages: 0,
   messages_last_minute: 0,
   unique_users_last_minute: 0,
@@ -85,7 +86,11 @@ export default function App() {
       </section>
 
       <section className="metric-grid">
-        <MetricCard label="Total Messages" value={summary.total_messages} />
+        <MetricCard
+          label="Total Ingested"
+          value={summary.total_ingested_messages}
+        />
+        <MetricCard label="Messages In Memory" value={summary.total_messages} />
         <MetricCard
           label="Messages / Minute"
           value={summary.messages_last_minute}

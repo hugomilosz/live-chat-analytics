@@ -39,6 +39,7 @@ class TopicGroupSummary(BaseModel):
 
 
 class DashboardSummary(BaseModel):
+    total_ingested_messages: int
     total_messages: int
     messages_last_minute: int
     unique_users_last_minute: int

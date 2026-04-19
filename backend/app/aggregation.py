@@ -32,6 +32,7 @@ class ChatPipeline:
     def __init__(self) -> None:
         self.raw_messages: deque[dict] = deque(maxlen=500)
         self.processed_messages: deque[ProcessedMessage] = deque(maxlen=500)
+        self.total_ingested_messages = 0
         self.topic_counter: Counter[str] = Counter()
         self.topic_group_counts: Counter[str] = Counter()
         self.cluster_counts: Counter[str] = Counter()
@@ -50,6 +51,7 @@ class ChatPipeline:
 
     def ingest(self, username: str, body: str) -> ProcessedMessage:
         timestamp = datetime.now(timezone.utc)
+        self.total_ingested_messages += 1
         self.raw_messages.append(
             {
                 "username": username,
@@ -231,6 +233,7 @@ class ChatPipeline:
         ]
 
         return DashboardSummary(
+            total_ingested_messages=self.total_ingested_messages,
             total_messages=len(self.processed_messages),
             messages_last_minute=len(recent),
             unique_users_last_minute=len({message.username for message in recent}),
