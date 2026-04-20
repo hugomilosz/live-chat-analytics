@@ -160,6 +160,38 @@ h1 {
   margin-bottom: 6px;
 }
 
+.cluster-card-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: start;
+}
+
+.severity-badge {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.severity-low {
+  background: rgba(124, 184, 110, 0.18);
+  color: #b8ef9f;
+}
+
+.severity-medium {
+  background: rgba(240, 175, 109, 0.18);
+  color: #ffd4a0;
+}
+
+.severity-high {
+  background: rgba(219, 109, 81, 0.18);
+  color: #ffb2a2;
+}
+
 .cluster-card small {
   display: block;
   color: #b8b2a7;

@@ -29,6 +29,7 @@ Chat Analyser is a real-time moderation analytics tool for live chat. It ingests
    - recent message count
    - active users
    - likely spam clusters using message similarity
+   - rolling spam severity based on recent repetition in the last 30 seconds
    - topic groups based on shared subject phrases
    - top topic terms
 7. The backend broadcasts the updated state to all connected frontend clients via WebSockets.
@@ -36,6 +37,7 @@ Chat Analyser is a real-time moderation analytics tool for live chat. It ingests
 ## Dashboard signals
 
 - `Spam Clusters` are for near-duplicate messages such as `this game sux`, `this game suxx`, and `this gaem sucks`.
+- Each spam cluster also includes a rolling severity label based on how many similar messages appeared recently and how many users were involved.
 - `Topic Groups` are broader subject buckets such as `this game` or `stream audio`. Messages can share a topic group even when they are not duplicates, for example `this game is bad` and `this game is good`.
 
 ## Tech stack

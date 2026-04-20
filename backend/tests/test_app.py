@@ -154,6 +154,29 @@ def test_summary_reports_total_ingested_separately_from_retained_messages() -> N
     assert summary["total_messages"] == 500
 
 
+def test_spam_clusters_include_rolling_window_severity() -> None:
+    messages = [
+        {"username": "u1", "body": "this game sucks"},
+        {"username": "u2", "body": "this game sucks!!"},
+        {"username": "u3", "body": "this game sux"},
+        {"username": "u4", "body": "this gaem sucks"},
+        {"username": "u5", "body": "this gamd sucks"},
+        {"username": "u6", "body": "this game suxx"},
+    ]
+
+    ingest_messages(messages)
+
+    summary = client.get("/api/summary").json()
+
+    assert len(summary["spam_clusters"]) == 1
+    cluster = summary["spam_clusters"][0]
+    assert cluster["recent_count"] == 6
+    assert cluster["recent_unique_users"] == 6
+    assert cluster["severity"] == "high"
+    assert "6 similar messages in 30s" in cluster["severity_reason"]
+    assert "spread across 6 users" in cluster["severity_reason"]
+
+
 def test_topic_groups_surface_two_word_phrases() -> None:
     messages = [
         {"username": "u1", "body": "stream audio is bad"},

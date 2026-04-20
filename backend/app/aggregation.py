@@ -26,6 +26,7 @@ MIN_TOKEN_OVERLAP_FOR_SEQUENCE_MATCH = 0.5
 CLUSTER_VARIANT_LIMIT = 6
 TOPIC_GROUP_VARIANT_LIMIT = 6
 TOPIC_GROUP_MATCH_THRESHOLD = 0.72
+SPAM_SEVERITY_WINDOW_SECONDS = 30
 
 
 class ChatPipeline:
@@ -199,12 +200,20 @@ class ChatPipeline:
         return topic_group_key
 
     def summary(self) -> DashboardSummary:
-        one_minute_ago = datetime.now(timezone.utc) - timedelta(minutes=1)
+        current_time = datetime.now(timezone.utc)
+        one_minute_ago = current_time - timedelta(minutes=1)
+        spam_window_start = current_time - timedelta(
+            seconds=SPAM_SEVERITY_WINDOW_SECONDS
+        )
         recent = [
             message
             for message in self.processed_messages
             if message.timestamp >= one_minute_ago
         ]
+        recent_cluster_activity: defaultdict[str, list[ProcessedMessage]] = defaultdict(list)
+        for message in self.processed_messages:
+            if message.timestamp >= spam_window_start:
+                recent_cluster_activity[message.cluster_key].append(message)
 
         top_topics = [
             TopicSummary(topic=topic, count=count)
@@ -222,15 +231,31 @@ class ChatPipeline:
             if count >= 2
         ]
 
-        spam_clusters = [
-            SpamClusterSummary(
-                text=self.cluster_examples[key],
-                count=count,
-                users=sorted(self.cluster_users[key]),
+        spam_clusters = []
+        for key, count in self.cluster_counts.most_common(5):
+            if count < 2:
+                continue
+
+            recent_messages_for_cluster = recent_cluster_activity[key]
+            recent_unique_users = len(
+                {message.username for message in recent_messages_for_cluster}
             )
-            for key, count in self.cluster_counts.most_common(5)
-            if count >= 2
-        ]
+            severity, severity_reason = cluster_severity_for(
+                len(recent_messages_for_cluster),
+                recent_unique_users,
+                count,
+            )
+            spam_clusters.append(
+                SpamClusterSummary(
+                    text=self.cluster_examples[key],
+                    count=count,
+                    users=sorted(self.cluster_users[key]),
+                    recent_count=len(recent_messages_for_cluster),
+                    recent_unique_users=recent_unique_users,
+                    severity=severity,
+                    severity_reason=severity_reason,
+                )
+            )
 
         return DashboardSummary(
             total_ingested_messages=self.total_ingested_messages,
@@ -334,3 +359,45 @@ def topic_phrase_similarity(left_phrase: str, right_phrase: str) -> float:
         return (first_score * 0.45) + (second_score * 0.55)
 
     return raw_message_similarity(left_phrase, right_phrase)
+
+
+def cluster_severity_for(
+    recent_count: int,
+    recent_unique_users: int,
+    total_count: int,
+) -> tuple[str, str]:
+    score = 0
+    reasons = []
+
+    if recent_count >= 12:
+        score += 3
+        reasons.append(f"{recent_count} similar messages in 30s")
+    elif recent_count >= 6:
+        score += 2
+        reasons.append(f"{recent_count} similar messages in 30s")
+    elif recent_count >= 3:
+        score += 1
+        reasons.append(f"{recent_count} similar messages in 30s")
+
+    if recent_unique_users >= 6:
+        score += 2
+        reasons.append(f"spread across {recent_unique_users} users")
+    elif recent_unique_users >= 3:
+        score += 1
+        reasons.append(f"spread across {recent_unique_users} users")
+
+    if total_count >= 10:
+        score += 1
+        reasons.append("large retained cluster")
+
+    if score >= 4:
+        severity = "high"
+    elif score >= 2:
+        severity = "medium"
+    else:
+        severity = "low"
+
+    if not reasons:
+        reasons.append("limited recent repetition")
+
+    return severity, ", ".join(reasons)

@@ -28,6 +28,7 @@ export default function App() {
   useEffect(() => {
     refreshSummary();
     const ws = new WebSocket(`${WS_BASE}/ws`);
+    const refreshIntervalId = window.setInterval(refreshSummary, 5000);
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
@@ -42,7 +43,10 @@ export default function App() {
       console.log("WebSocket disconnected");
     };
 
-    return () => ws.close();
+    return () => {
+      window.clearInterval(refreshIntervalId);
+      ws.close();
+    };
   }, []);
 
   async function submitMessage(event) {
@@ -156,10 +160,20 @@ export default function App() {
             ) : (
               summary.spam_clusters.map((cluster) => (
                 <div className="cluster-card" key={cluster.text}>
-                  <p>{cluster.text}</p>
+                  <div className="cluster-card-header">
+                    <p>{cluster.text}</p>
+                    <span className={`severity-badge severity-${cluster.severity}`}>
+                      {cluster.severity}
+                    </span>
+                  </div>
                   <small>
                     {cluster.count} messages across {cluster.users.length} users
                   </small>
+                  <small>
+                    {cluster.recent_count} in the last 30s across{" "}
+                    {cluster.recent_unique_users} users
+                  </small>
+                  <small>{cluster.severity_reason}</small>
                 </div>
               ))
             )}

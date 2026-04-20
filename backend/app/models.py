@@ -29,6 +29,10 @@ class SpamClusterSummary(BaseModel):
     text: str
     count: int
     users: List[str]
+    recent_count: int
+    recent_unique_users: int
+    severity: str
+    severity_reason: str
 
 
 class TopicGroupSummary(BaseModel):
