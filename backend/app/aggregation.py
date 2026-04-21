@@ -15,7 +15,7 @@ from .normalisation import (
     cluster_key_for,
     extract_similarity_terms,
     extract_topic_phrase_terms,
-    extract_topic_terms,
+    extract_topic_signals,
     normalise_text,
 )
 from .similarity import fuzzy_jaccard_similarity, token_similarity
@@ -27,6 +27,8 @@ CLUSTER_VARIANT_LIMIT = 6
 TOPIC_GROUP_VARIANT_LIMIT = 6
 TOPIC_GROUP_MATCH_THRESHOLD = 0.72
 SPAM_SEVERITY_WINDOW_SECONDS = 30
+LOW_SIGNAL_CLUSTER_KEY = "low-signal"
+LOW_SIGNAL_CLUSTER_LABEL = "low-signal message"
 
 
 class ChatPipeline:
@@ -62,30 +64,45 @@ class ChatPipeline:
         )
 
         normalised_body = normalise_text(body)
-        cluster_key = self.assign_cluster(normalised_body)
+        is_low_signal = is_low_signal_message(normalised_body)
+        cluster_label = (
+            LOW_SIGNAL_CLUSTER_LABEL
+            if is_low_signal
+            else display_cluster_label(normalised_body, body)
+        )
+        cluster_key = (
+            LOW_SIGNAL_CLUSTER_KEY
+            if is_low_signal
+            else self.assign_cluster(normalised_body, cluster_label)
+        )
         processed = ProcessedMessage(
             username=username,
             original_body=body,
             normalised_body=normalised_body,
             cluster_key=cluster_key,
-            cluster_label=self.cluster_examples[cluster_key],
+            cluster_label=cluster_label,
             timestamp=timestamp,
         )
 
         self.processed_messages.append(processed)
-        self.cluster_counts[cluster_key] += 1
-        self.cluster_examples.setdefault(cluster_key, normalised_body)
-        self.cluster_users[cluster_key].add(username)
+        if not is_low_signal:
+            self.cluster_counts[cluster_key] += 1
+            self.cluster_examples.setdefault(cluster_key, cluster_label)
+            self.cluster_users[cluster_key].add(username)
 
-        for topic in extract_topic_terms(normalised_body):
-            self.topic_counter[topic] += 1
-        self.update_topic_groups(username, normalised_body)
+        canonical_topic = self.update_topic_groups(username, normalised_body)
+        if canonical_topic is not None:
+            self.topic_counter[canonical_topic] += 1
+        else:
+            for topic in extract_topic_signals(normalised_body):
+                self.topic_counter[topic] += 1
 
-        self.sync_cluster_labels(cluster_key)
+        if not is_low_signal:
+            self.sync_cluster_labels(cluster_key)
 
         return processed
 
-    def assign_cluster(self, normalised_body: str) -> str:
+    def assign_cluster(self, normalised_body: str, cluster_label: str) -> str:
         best_match = None
         best_score = 0.0
 
@@ -97,19 +114,21 @@ class ChatPipeline:
 
         if best_match is not None:
             self.record_cluster_variant(best_match, normalised_body)
-            self.cluster_examples[best_match] = choose_cluster_example(
+            chosen_example = choose_cluster_example(
                 self.cluster_variants[best_match],
                 self.cluster_variant_counts[best_match],
             )
+            if chosen_example:
+                self.cluster_examples[best_match] = chosen_example
             return best_match
 
-        return self.create_cluster(normalised_body)
+        return self.create_cluster(normalised_body, cluster_label)
 
-    def create_cluster(self, normalised_body: str) -> str:
+    def create_cluster(self, normalised_body: str, cluster_label: str) -> str:
         seed = cluster_key_for(normalised_body).replace(" ", "-")
         cluster_key = f"{seed}-{self.next_cluster_number}"
         self.next_cluster_number += 1
-        self.cluster_examples[cluster_key] = normalised_body
+        self.cluster_examples[cluster_key] = cluster_label
         self.cluster_variants[cluster_key] = deque(
             [normalised_body],
             maxlen=CLUSTER_VARIANT_LIMIT,
@@ -160,10 +179,10 @@ class ChatPipeline:
             if message.cluster_key == cluster_key:
                 message.cluster_label = cluster_label
 
-    def update_topic_groups(self, username: str, normalised_body: str) -> None:
+    def update_topic_groups(self, username: str, normalised_body: str) -> str | None:
         topic_phrase = derive_topic_phrase(normalised_body)
         if topic_phrase is None:
-            return
+            return None
 
         topic_group_key = self.assign_topic_group(topic_phrase)
         self.topic_group_counts[topic_group_key] += 1
@@ -172,6 +191,8 @@ class ChatPipeline:
         examples = self.topic_group_examples[topic_group_key]
         if normalised_body not in examples:
             examples.append(normalised_body)
+
+        return self.topic_group_labels[topic_group_key]
 
     def assign_topic_group(self, topic_phrase: str) -> str:
         best_match = None
@@ -336,6 +357,21 @@ def derive_topic_phrase(text: str) -> str | None:
     if len(terms) < 2:
         return None
     return " ".join(terms[:2])
+
+
+def display_cluster_label(normalised_body: str, original_body: str) -> str:
+    if normalised_body:
+        return normalised_body
+
+    cleaned_original = " ".join(original_body.split()).strip()
+    if cleaned_original:
+        return cleaned_original[:80]
+
+    return "non-text message"
+
+
+def is_low_signal_message(normalised_body: str) -> bool:
+    return not any(character.isalnum() for character in normalised_body)
 
 
 def best_topic_group_match_score(topic_phrase: str, variants: deque[str]) -> float:

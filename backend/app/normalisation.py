@@ -106,6 +106,18 @@ def extract_topic_terms(text: str) -> list[str]:
     ]
 
 
+def extract_topic_signals(text: str) -> list[str]:
+    phrase_terms = extract_topic_phrase_terms(text)
+    if len(phrase_terms) >= 2:
+        return [" ".join(phrase_terms[:2])]
+
+    content_terms = extract_topic_terms(text)
+    if content_terms:
+        return [content_terms[0]]
+
+    return []
+
+
 def extract_topic_phrase_terms(text: str) -> list[str]:
     tokens = [word for word in text.split() if not word.isdigit()]
     if len(tokens) < 2:

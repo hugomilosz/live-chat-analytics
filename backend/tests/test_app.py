@@ -130,6 +130,8 @@ def test_topic_groups_capture_shared_subjects_without_merging_clusters() -> None
     summary = client.get("/api/summary").json()
 
     assert len(summary["spam_clusters"]) == 0
+    assert summary["top_topics"][0]["topic"] == "this game"
+    assert summary["top_topics"][0]["count"] == 3
 
     groups = {group["phrase"]: group for group in summary["topic_groups"]}
     assert "this game" in groups
@@ -189,12 +191,30 @@ def test_topic_groups_surface_two_word_phrases() -> None:
     summary = client.get("/api/summary").json()
 
     assert len(summary["topic_groups"]) == 1
+    assert summary["top_topics"][0]["topic"] == "stream audio"
+    assert summary["top_topics"][0]["count"] == 3
 
     group = summary["topic_groups"][0]
     assert group["phrase"] == "stream audio"
     assert group["count"] == 3
     assert sorted(group["users"]) == ["u1", "u2", "u3"]
     assert len(group["sample_messages"]) == 3
+
+
+def test_symbol_only_messages_are_kept_out_of_spam_clusters() -> None:
+    messages = [
+        {"username": "u1", "body": "!!! ??? ###"},
+        {"username": "u2", "body": "!!! ??? ###"},
+    ]
+
+    ingest_messages(messages)
+
+    summary = client.get("/api/summary").json()
+
+    assert summary["spam_clusters"] == []
+    assert summary["recent_messages"][0]["cluster_key"] == "low-signal"
+    assert summary["recent_messages"][0]["cluster_label"] == "low-signal message"
+    assert summary["recent_messages"][0]["normalised_body"] == ""
 
 
 def test_simulate_endpoint_queues_messages_through_broker(

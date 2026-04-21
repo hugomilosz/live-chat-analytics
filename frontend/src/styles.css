@@ -160,6 +160,22 @@ h1 {
   margin-bottom: 6px;
 }
 
+.cluster-preview,
+.cluster-supporting-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+}
+
+.cluster-preview {
+  -webkit-line-clamp: 2;
+  flex: 1;
+}
+
+.cluster-supporting-text {
+  -webkit-line-clamp: 3;
+}
+
 .cluster-card-header {
   display: flex;
   justify-content: space-between;
@@ -205,11 +221,22 @@ h1 {
   display: flex;
   justify-content: space-between;
   gap: 18px;
+  align-items: start;
+}
+
+.message-row > div {
+  min-width: 0;
+}
+
+.message-input {
+  flex: 1.2;
 }
 
 .message-row code {
   color: #f0af6d;
   white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .message-output {
@@ -217,10 +244,29 @@ h1 {
   gap: 6px;
   justify-items: end;
   text-align: right;
+  flex: 1;
+  min-width: 0;
 }
 
 .message-output small {
   color: #b8b2a7;
+}
+
+.message-preview,
+.message-supporting-text {
+  display: -webkit-box;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+}
+
+.message-preview {
+  -webkit-line-clamp: 4;
+}
+
+.message-supporting-text {
+  -webkit-line-clamp: 2;
 }
 
 .composer {

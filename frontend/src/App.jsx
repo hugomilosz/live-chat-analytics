@@ -140,7 +140,12 @@ export default function App() {
                   <small>
                     {group.count} messages across {group.users.length} users
                   </small>
-                  <small>{group.sample_messages.join(" | ")}</small>
+                  <small
+                    className="cluster-supporting-text"
+                    title={group.sample_messages.join(" | ")}
+                  >
+                    {group.sample_messages.join(" | ")}
+                  </small>
                 </div>
               ))
             )}
@@ -161,7 +166,9 @@ export default function App() {
               summary.spam_clusters.map((cluster) => (
                 <div className="cluster-card" key={cluster.text}>
                   <div className="cluster-card-header">
-                    <p>{cluster.text}</p>
+                    <p className="cluster-preview" title={cluster.text}>
+                      {cluster.text}
+                    </p>
                     <span className={`severity-badge severity-${cluster.severity}`}>
                       {cluster.severity}
                     </span>
@@ -191,14 +198,21 @@ export default function App() {
             ) : (
               summary.recent_messages.map((message, index) => (
                 <div className="message-row" key={`${message.timestamp}-${index}`}>
-                  <div>
+                  <div className="message-input">
                     <strong>{message.username}</strong>
-                    <p>{message.original_body}</p>
+                    <p className="message-preview" title={message.original_body}>
+                      {message.original_body}
+                    </p>
                   </div>
                   <div className="message-output">
-                    <code>{message.cluster_label}</code>
+                    <code title={message.cluster_label}>{message.cluster_label}</code>
                     <small>cluster: {message.cluster_key}</small>
-                    <small>normalised: {message.normalised_body}</small>
+                    <small
+                      className="message-supporting-text"
+                      title={message.normalised_body || "no normalised text"}
+                    >
+                      normalised: {message.normalised_body || "no normalised text"}
+                    </small>
                   </div>
                 </div>
               ))
