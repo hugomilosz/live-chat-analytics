@@ -2,6 +2,9 @@ import { useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.VITE_API_BASE;
 const WS_BASE = import.meta.env.VITE_WS_BASE;
+const SUMMARY_REFRESH_INTERVAL_MS = 5000;
+const SAMPLE_CHAT_COUNT = 15;
+const SPAM_WINDOW_LABEL = "30s";
 
 const emptySummary = {
   total_ingested_messages: 0,
@@ -28,19 +31,14 @@ export default function App() {
   useEffect(() => {
     refreshSummary();
     const ws = new WebSocket(`${WS_BASE}/ws`);
-    const refreshIntervalId = window.setInterval(refreshSummary, 5000);
+    const refreshIntervalId = window.setInterval(
+      refreshSummary,
+      SUMMARY_REFRESH_INTERVAL_MS,
+    );
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       setSummary(data);
-    };
-
-    ws.onopen = () => {
-      console.log("WebSocket connected");
-    };
-
-    ws.onclose = () => {
-      console.log("WebSocket disconnected");
     };
 
     return () => {
@@ -68,7 +66,9 @@ export default function App() {
 
   async function simulateMessages() {
     setLoading(true);
-    await fetch(`${API_BASE}/api/simulate?count=15`, { method: "POST" });
+    await fetch(`${API_BASE}/api/simulate?count=${SAMPLE_CHAT_COUNT}`, {
+      method: "POST",
+    });
     await refreshSummary();
     setLoading(false);
   }
@@ -177,7 +177,7 @@ export default function App() {
                     {cluster.count} messages across {cluster.users.length} users
                   </small>
                   <small>
-                    {cluster.recent_count} in the last 30s across{" "}
+                    {cluster.recent_count} in the last {SPAM_WINDOW_LABEL} across{" "}
                     {cluster.recent_unique_users} users
                   </small>
                   <small>{cluster.severity_reason}</small>

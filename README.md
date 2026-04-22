@@ -11,6 +11,7 @@ Chat Analyser is a real-time moderation analytics tool for live chat. It ingests
 - recognise keyboard-adjacent typo variants during clustering
 - group near-duplicate messages into spam clusters
 - group related messages into shared topic phrases without forcing them into the same spam cluster
+- keep punctuation-only or otherwise low-signal messages visible in the live feed without surfacing them as spam clusters
 
 ### Pipeline
 
@@ -31,14 +32,16 @@ Chat Analyser is a real-time moderation analytics tool for live chat. It ingests
    - likely spam clusters using message similarity
    - rolling spam severity based on recent repetition in the last 30 seconds
    - topic groups based on shared subject phrases
-   - top topic terms
+   - top topic signals based on canonical shared phrases
 7. The backend broadcasts the updated state to all connected frontend clients via WebSockets.
 
 ## Dashboard signals
 
 - `Spam Clusters` are for near-duplicate messages such as `this game sux`, `this game suxx`, and `this gaem sucks`.
 - Each spam cluster also includes a rolling severity label based on how many similar messages appeared recently and how many users were involved.
+- Low-signal messages such as punctuation-only bursts stay visible in `Recent Messages`, but are excluded from `Spam Clusters`.
 - `Topic Groups` are broader subject buckets such as `this game` or `stream audio`. Messages can share a topic group even when they are not duplicates, for example `this game is bad` and `this game is good`.
+- `Top Topics` prefer shared phrases over loose single words, so the dashboard surfaces signals like `this game` rather than filler terms.
 
 ## Tech stack
 
