@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 
 class ChatMessageIn(BaseModel):
-    username: str = Field(..., min_length=1, max_length=40)
+    username: str = Field(..., min_length=1, max_length=80)
     body: str = Field(..., min_length=1, max_length=400)
 
 

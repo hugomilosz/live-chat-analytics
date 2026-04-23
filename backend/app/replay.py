@@ -47,12 +47,16 @@ def load_replay_messages(
 def build_replay_schedule(
     messages: list[ReplayMessage],
     speed: float = 1.0,
+    preserve_timing: bool = True,
 ) -> list[tuple[float, ReplayMessage]]:
     if speed <= 0:
         raise ValueError("Replay speed must be greater than 0.")
 
     if not messages:
         return []
+
+    if not preserve_timing:
+        return [(0.0, message) for message in messages]
 
     timestamps = [message.timestamp for message in messages if message.timestamp is not None]
     if len(timestamps) != len(messages):

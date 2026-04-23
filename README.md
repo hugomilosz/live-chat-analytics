@@ -137,6 +137,20 @@ source .venv/bin/activate
 python replay_chat.py data/demo_chat_replay.jsonl --speed 5
 ```
 
+The replay script prints a summary at the end with total messages, elapsed time, and average throughput in `msgs/sec`.
+
+If you want a CV-safe throughput number, run the replay in benchmark mode so source timestamps are ignored and messages are sent as fast as possible:
+
+```bash
+python replay_chat.py data/demo_chat_replay.jsonl --benchmark --quiet --concurrency 16
+```
+
+That produces output like:
+
+```text
+Replay finished: 500 messages in 2.84s (176.1 msgs/sec average)
+```
+
 Supported formats:
 
 - JSON array

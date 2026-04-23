@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .models import ChatMessageIn
 from .sample_data import random_message
-from .kafka import send_message
+from .kafka import flush_producer, send_message
 from .state import pipeline
 from .consumer import run as start_kafka_consumer
 
@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
         broadcaster_task,
         return_exceptions=True,
     )
+    await asyncio.to_thread(flush_producer)
 
 
 app = FastAPI(title="Chat Analyser API", lifespan=lifespan)

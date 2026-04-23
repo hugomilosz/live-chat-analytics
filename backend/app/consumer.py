@@ -14,7 +14,7 @@ consumer.subscribe(["chat_raw"])
 async def run(trigger_update):
     try:
         while True:
-            msg = await asyncio.to_thread(consumer.poll, 1.0)
+            msg = await asyncio.to_thread(consumer.poll, 0.1)
             
             if msg is None:
                 continue
@@ -22,7 +22,6 @@ async def run(trigger_update):
                 continue
 
             data = json.loads(msg.value().decode())
-            print(f"Consumer received message from: {data['username']}")
 
             pipeline.ingest(data["username"], data["body"])
 

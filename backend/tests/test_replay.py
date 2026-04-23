@@ -3,10 +3,12 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.replay import build_replay_schedule, load_replay_messages
+from replay_chat import summarise_replay
 
 
 def test_load_replay_messages_reads_demo_jsonl() -> None:
@@ -41,3 +43,19 @@ def test_build_replay_schedule_falls_back_to_immediate_replay_without_timestamps
     schedule = build_replay_schedule(messages, speed=5.0)
 
     assert [delay for delay, _message in schedule] == [0.0, 0.0]
+
+
+def test_build_replay_schedule_can_ignore_source_timestamps() -> None:
+    messages = load_replay_messages("backend/data/demo_chat_replay.jsonl")[:3]
+
+    schedule = build_replay_schedule(messages, speed=1.0, preserve_timing=False)
+
+    assert [delay for delay, _message in schedule] == [0.0, 0.0, 0.0]
+
+
+def test_summarise_replay_reports_average_throughput() -> None:
+    stats = summarise_replay(sent_messages=250, duration_seconds=2.5)
+
+    assert stats.sent_messages == 250
+    assert stats.duration_seconds == 2.5
+    assert stats.average_messages_per_second == pytest.approx(100.0)

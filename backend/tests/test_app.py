@@ -73,6 +73,26 @@ def test_post_message_accepts_messages(monkeypatch: pytest.MonkeyPatch) -> None:
     assert captured_messages == [{"username": "user1", "body": "hello world"}]
 
 
+def test_post_message_accepts_longer_usernames(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_messages = []
+
+    def fake_send_message(message: dict[str, str]) -> None:
+        captured_messages.append(message)
+
+    monkeypatch.setattr(main_module, "send_message", fake_send_message)
+
+    username = "BFF Buddy the dog, Fiona the cat, and Friends"
+    response = client.post(
+        "/api/messages",
+        json={"username": username, "body": "hello world"},
+    )
+
+    assert response.status_code == 200
+    assert captured_messages == [{"username": username, "body": "hello world"}]
+
+
 def test_near_duplicate_messages_form_single_cluster() -> None:
     messages = [
         {"username": "u1", "body": "this game sux"},
