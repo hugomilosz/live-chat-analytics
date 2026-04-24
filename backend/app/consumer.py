@@ -1,15 +1,22 @@
 import json
 import asyncio
 from confluent_kafka import Consumer
+
+from .config import (
+    KAFKA_AUTO_OFFSET_RESET,
+    KAFKA_BOOTSTRAP_SERVERS,
+    KAFKA_CONSUMER_GROUP,
+    KAFKA_TOPIC_CHAT_RAW,
+)
 from .state import pipeline
 
 consumer = Consumer({
-    "bootstrap.servers": "127.0.0.1:9092",
-    "group.id": "chat-analyser",
-    "auto.offset.reset": "earliest"
+    "bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS,
+    "group.id": KAFKA_CONSUMER_GROUP,
+    "auto.offset.reset": KAFKA_AUTO_OFFSET_RESET,
 })
 
-consumer.subscribe(["chat_raw"])
+consumer.subscribe([KAFKA_TOPIC_CHAT_RAW])
 
 async def run(trigger_update):
     try:

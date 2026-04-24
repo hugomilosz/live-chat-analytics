@@ -7,6 +7,7 @@ from typing import Any
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 
+from .config import CORS_ORIGINS, SUMMARY_BROADCAST_DEBOUNCE_SECONDS
 from .models import ChatMessageIn
 from .sample_data import random_message
 from .kafka import flush_producer, send_message
@@ -23,7 +24,7 @@ async def broadcaster_loop():
         broadcast_event.clear()
 
         # Batch messages so the dashboard gets one update.
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(SUMMARY_BROADCAST_DEBOUNCE_SECONDS)
         if subscribers:
             await broadcast_summary()
 
@@ -50,7 +51,7 @@ app = FastAPI(title="Chat Analyser API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

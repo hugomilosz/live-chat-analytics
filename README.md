@@ -82,6 +82,30 @@ frontend/
 
 ## Run locally
 
+### Environment variables
+
+Copy the example env files if you want to override the default local settings:
+
+```bash
+cp backend/.env.example backend/.env
+cp frontend/.env.example frontend/.env
+```
+
+The backend supports:
+
+- `KAFKA_BOOTSTRAP_SERVERS`
+- `KAFKA_TOPIC_CHAT_RAW`
+- `KAFKA_CONSUMER_GROUP`
+- `KAFKA_AUTO_OFFSET_RESET`
+- `CHAT_ANALYSER_CORS_ORIGINS`
+- `CHAT_ANALYSER_BROADCAST_DEBOUNCE_SECONDS`
+- `CHAT_ANALYSER_API_BASE`
+
+The frontend supports:
+
+- `VITE_API_BASE`
+- `VITE_WS_BASE`
+
 ### 1. Start the Message Broker (Redpanda)
 
 You must have Docker running.

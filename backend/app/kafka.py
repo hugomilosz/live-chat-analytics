@@ -1,7 +1,9 @@
 from confluent_kafka import Producer
 import json
 
-producer = Producer({"bootstrap.servers": "127.0.0.1:9092"})
+from .config import KAFKA_BOOTSTRAP_SERVERS, KAFKA_TOPIC_CHAT_RAW
+
+producer = Producer({"bootstrap.servers": KAFKA_BOOTSTRAP_SERVERS})
 
 
 def send_message(message: dict) -> None:
@@ -9,7 +11,7 @@ def send_message(message: dict) -> None:
 
     while True:
         try:
-            producer.produce("chat_raw", payload)
+            producer.produce(KAFKA_TOPIC_CHAT_RAW, payload)
             producer.poll(0)
             return
         except BufferError:

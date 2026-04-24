@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.config import CHAT_ANALYSER_API_BASE
 from app.replay import build_replay_schedule, load_replay_messages
 
 
@@ -36,7 +37,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--api-base",
-        default="http://127.0.0.1:8000",
+        default=CHAT_ANALYSER_API_BASE,
         help="Base URL for the backend API.",
     )
     parser.add_argument(
