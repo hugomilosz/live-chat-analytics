@@ -2,6 +2,34 @@
 
 Chat Analyser is a real-time moderation analytics tool for live chat. It ingests chat messages via a message broker, normalises noisy text, groups repeated or similar messages, and streams live signals to a dashboard for moderators and streamers via WebSockets.
 
+```mermaid
+flowchart TD
+  Client[Chat Ingestion / Replay] -->|POST /api/messages| API
+
+  subgraph Broker
+    RP[(Redpanda / Kafka)]
+  end
+
+  subgraph Backend API
+    API[FastAPI Endpoint]
+    Consumer[Background Consumer]
+    Norm[Text Normaliser]
+    Cluster[Spam & Topic Aggregator]
+    WS[WebSocket Broadcaster]
+  end
+
+  subgraph Client Side
+    UI[React Frontend]
+  end
+
+  API -->|Produce| RP
+  RP -->|Consume| Consumer
+  Consumer --> Norm
+  Norm --> Cluster
+  Cluster --> WS
+  WS -->|Live State| UI
+```
+
 ## Features
 
 - ingest structured chat messages with `username` and `body`
